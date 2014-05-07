@@ -1,0 +1,336 @@
+\section{Boundary Conditions}
+
+The boundaryCondition is really just a residual (and optionally a Jacobian) on 
+a side of a domain.
+
+The only difference is that some BCs aren't integrated over the boundary (nodal 
+boundary conditions have this quality, and Dirichlet is an example). Non-nodal 
+BCs are IntegratedBCs (such as neumann). So, you want to inherit from either NodalBC or 
+IntegratedBC. An integrated boundary condition represents a boundary integral 
+just like a kernel represents a domain integral. 
+
+Non-integrated BCs can't provide a Jacobian.
+
+They have about the same stuff that kernels do. New things are things like 
+normal unit vectors. So, if you have a curvilinear geometry, the normals are a 
+continuous distribution of unit vectors. Current\_side numbers. 
+
+Coupling to a BC is exactly the same as coupling to a kernel.
+
+\subsection{Dirichlet}
+Basically, you have 
+\begin{align}
+  u=g, \in \partial\Omega
+  \intertext{becomes}
+  u-g=0, \in \partial\Omega
+  \label{dirichlet}
+\end{align}
+
+
+
+\section{Periodic}
+You can do it in a simple way or in a complicated way. The complicated way 
+involves defining transformation funcitons. 
+
+
+\section{h-adaptivity}
+Between refinement and coarsening, the mesh is made smaller (more refined) is 
+areas of high error and large (coarser) in areas of low error.  The error field 
+is read by the marker (which marks elements for refinement or coarsening) while 
+working toward the solve. The indicator decides whether or not to do the mark.  
+Both markers and indicators can be subclassed. The refining and coarsening is 
+self-similar such that they have the same shate as their parent.  
+
+\subsection{Meshing Recommendations}
+You can't coarsen beyond level zero.
+
+Mesh to capture your geometry. Put as many elements in as you need to capture 
+that geometry. Don't try to add mesh to capture the solution. Allow moose to do 
+that refinement because moose can't coarsen past the refinement of the original 
+mesh.
+
+Try the ErrorFractionMarker witht he Gradient Indicator first. That's your go-to 
+plan for this.
+
+Often in steady state simulations you want coarsen to equal 0 and refine to be 
+some larger number (0.5?).
+
+
+\section{Rattle$S_N$ake}
+
+RattleSNake is a multilevel FEM rad stransport solver.
+
+It solves the linear time-dependent Bolzmann equation. It is 
+
+It has $S_N$, $P_N$, and diffusion in space. 
+It is multigroup in energy. It uses the method of lines in time. 
+It is designed to work with MOOSE. 
+
+
+Yak is a library of common moose objects. 
+
+
+Neutron transport calculations predict the motions and interactions with 
+neutrons with matter in a region of interest.
+
+The solution of the transport equation just gives a distribution of neutrons. 
+
+Accurate prediciton of these quantities is essential to the design, safety 
+analysis and operation of nuclear fission reactors.
+
+The seven variables are 3 spatial, two angular, energy, and time. 
+
+Each is continuous, but numerical simulations need discretization. 
+\begin{itemize}
+\item Spatial (shape of flux approximations)
+\item Energy (multigroup approsimation)
+\item angular must account fo ranisotropic neutron behavior especially with respect to 
+the scattering kerne. 
+\item Time dependence must account for the coupling of other physics through 
+temperature, etc.
+\end{itemize}
+
+
+
+The scattering term in the diffusion equation is a simple kernel with the 
+scatttering as the materials property and the flux in another group as the 
+coupled variable. 
+The scattering matrix is split into kernels corresponding to tall the nonzeros 
+in the matrix. 
+
+Transport equation is similar, but h scatteing material property will be a 
+vector containing all higher order anisotropic scattingers
+
+If the number of nonzeros is too large\ldots. ?
+
+Rattlesnake uses pjfnk to solve. 
+
+
+The rattlesnake code can result in a need for very large meshes for a full core. 
+
+Combined with 50-100 energy groups and 50-100 angles, a full core transport can 
+include trillions of degrees of freedom.
+
+The rattlesnake ldrd is looking at developing a multilevel approach for full 
+core modeling. 
+\begin{itemize}
+  \item fuel resolved regions
+  \item fuel cell homogenized
+  \item fuel bundle homogenized
+\end{itemize}
+
+It has been designed to solve transient and eighenvalue problems with different 
+scales. 
+
+A multigroup diffusion solver gives a first guess at the source term to 
+accelerate the transport solution. The transport solution is then conducted on 
+the fine grid.
+
+Ther eis a MC hybrid method in rattlesnake.
+
+SN-CFEM with the SAAF formulatio has been implemented. LS is under development 
+with TAMU. OpenMC and PDT are planned to be coupled into rattlesnake throught he 
+generic NDA interface. 
+
+
+MITs contribution is BEAVRS. (Benchmark for Evaluation And Validation of Reactor 
+Simulations)
+
+
+
+\section{MAMMOTH}
+MAMMOTH will likely be a livrary. It will include tools for core management, 
+safety analysis, spent fuel analysis, etc. 
+
+
+\subsection{Core Management}
+
+This includes tons of stuff.
+rattlesnake openmc dragon4 (lattice) pronghorn\ldots 
+RAVEN is fuel cycle analysis. Grizzly is for structural analysis. .. .
+
+
+High fidelity neutron and gamma transport. Multi-scale coupled deterministic 3-D 
+neutron gamma transport solver with cross section generation and thermal 
+hydraulic feeback. 
+
+The idea will be to develop power and burnup distributions with multiscale 
+capability including depleton power coupling kinetics and fluids.. 
+
+
+
+For depletion, they're implementing CRAM depletion solvers. 
+
+\section{Executioners}
+
+Some common options include the tolerances for the solvers. These may be maximum 
+number of linear iterations or nonlinear iterators, etc.
+
+$nl\_rel\_tol$ is the main one with which we say things are converged. It is, by 
+default, set to be $10^{-8}$. That should be sufficient most of the time.
+
+\subsection{Transient}
+
+There is really only one transient executioner. A lot of the functionality is in 
+TimeSteppers. The frequent options include dt, numsteps, starttime, endtime, 
+scheme, etc.
+
+TimeIntegrators Backward-Euler, BDF2, Crank-Nicolson, Implicit-Euler, 
+Explicit-Euler, etc. Each one supports adaptive time stepping. 
+
+When you're using time integrators, you need a TimeDerivative part of your 
+residual. When you want to start doing a transient, you want to put a derivative 
+in there. It's just an extra kernel that describes the time derivative term. 
+MOOSE doesn't know anything about the time derivative while it's solving. It 
+just treats these as kernels, so you get to determine whether you have time 
+derivatives in your pdes just like you would with any other kernel term. 
+
+
+The $\frac{\partial u}{\partial t}$ is computed by the TimeDerivative kernel. 
+So, to reuse code when you're building a custom time derivative kernel, you'll 
+just extend the TimeDerivative class (which is a kernel for 
+$\frac{\partial u}{\partial t}$).
+
+To do a transient solution, add the appropriate timederivative kernels and 
+switch your executioner type to ``Transient.'' 
+
+\begin{verbatim}
+[Executioner]
+  type = Transient
+  solve_type = 'PJFNK'
+  num_steps = 75
+  dt = 1
+[]
+\end{verbatim}
+
+The reason you do different time integrators is because you get different 
+convergence rates for different time integrators. 
+
+\subsection{Adaptive Time}
+Set the timestepper to DT2 to help with adaptive timestepping. There are other 
+timesteppers for adaptive timestepping, but DT2 will probably do the rck. 
+
+\section{Initial Conditions}
+
+So, the initial conditions can be spatially dependent. With nonlinear 
+multiphysics, initial conditions really matter. Also, initial conditions must 
+satisfy your pdes and your boundary conditions. The InitialCondition system 
+includes a parent class. You can also read in initial conditions from a 
+different simulation's output if you're using exodusII.
+
+
+To subclass InitialCondition, you'll need to implement a value and optionally a 
+gradient funciton. Note that value is a public function. 
+
+\subsection{Point}
+Note that it may be useful to use the point class. To get at the x coordinate, 
+of a Point, $p$, you give it a $p(0)$.
+
+\subsection{Block Parameter}
+The block parameter is valid for a lot fo objects in moose to restrict the 
+object to only one portion of the domain. It is a block name or number that 
+you've set up in the mesh generation.
+
+This is how you'll have a heat generation term in one part of your domain but 
+not in another part. 
+
+
+\section{Materials}
+Material objects have Property members. 
+
+Use declareProperty<Type>( ) to declare a material property. 
+
+You must override computQpProperties(). It merely computes all of the declared 
+properties at one quadrature point. 
+
+You can use coupled variables with the same functions that kernels use. This 
+includes coupledValue( ), etc.
+
+To use a material property outside of the material class, use 
+getMaterialProperty<Type>(). It gives the material property for that quadrature 
+point. 
+
+\subsection{Fancy Materials}
+
+There's an example that shows off the fancy things you can do with materials.
+
+This is where you have to do a lot of work in the computQpProperties overload. 
+Literally anything can happen in the computeQpProperties function. Go nuts.
+
+\subsection{Using Materials}
+So, there's some material in your kernel (like, the diffusivity) you can then 
+just pull in the material property by calling, you guessed it, 
+$getMaterialProperty[\_qp]$
+
+
+
+\subsection{Stateful Material Properties}
+These properties are just declared like normal, then you declare that it has an 
+old value so that moose will keep them in memory. You'll also need to 
+declarePropertyOld() which gives you back a reference to hold onto. You can also 
+declarePropertyOlder(). This will obviously use more memory. LOTS.
+
+\section{Peacock}
+
+Note that peacock is located in trunk/peacock (they suggest that you put trunk 
+into project/).
+
+If you put your squirrel problems trunk/problems/squirrel/, peacock will figure 
+out that you're using squirrel to solve the problem. 
+
+
+\section{Auxiliary Variables}
+This is a system that you will not see how to use it up front, but is super 
+useful once you see a use for it. It is intended to allow explicit calculations 
+using nonlinear variables. It basically creates fields of variables.  It acts 
+just like a regular variable. They will come out in the output file (so, they're 
+useful for viewing things that you don't solve for). There are two flavors. One 
+is Elemental (constant, average, values per element). The other is Nodal (usually first 
+order linear LaGrange, which gives you one value per node). There are rules 
+about what you can couple to for each of these flavors. 
+You can 
+couple elemental auxiliary variables to nonlinear variables as well as both 
+flavors of auxiliary variables. You can't coupld nodal auxiliary variables to 
+elemental auxiliary variables. This is because the auxiliary variables are not 
+continuous at the nodes. 
+
+Recall that material properties are generally not on the nodes. They are at the 
+quadrature points. You cannot, therefore, compute nodal auxiliary variables 
+using material properties.  
+
+\subsection{Auxiliary Kernels}
+These operate on the auxiliary variables. They have compute value rather than 
+computeqpresidual. They are auxiliary variable agnostic. They don't have 
+Jacobians. 
+
+
+Auxiliary variables have old states just like nonlinear variables. 
+\section{Functions}
+There are moose objects called functions. You can use them to provide functions 
+as parameters in the input file. You'll need to override value and gradient. 
+
+\section{Postprocessors}
+
+This is similar to an auxiliary variable, but is typically applied to a whole 
+domain based on a reduction of the full domain state. So, the postprocessor 
+spits back out a single variable. They can be computed at any part of the 
+calculation. They are, by default, executed at the end of the timestep. They are 
+also spit out in the output stream.
+
+They are computed when needed using the $execute\_on$ function (on timestep, 
+initial, jacobian, etc.). 
+
+
+The postprocessors are Elemental, Nodal, Side, and General. There's sortof 
+different, mostly because of what they operate on (element, node, boundary, 
+wherever). GeneralPostprocessors can depend on each other, though the other 
+types of postprocessors cannot. 
+
+There are some fancy virtual functions within postprocessors. They are 
+initialize, execute, threadJoin, finalize, and getValue. For most applications 
+of the postprocessors, you won't need these. You'll have cool tools at your 
+disposal like gatherSum or whatever that helps you do the aggregating accross 
+MPI and whatnot that you might be interested in. Derek : ``We put these things in 
+here because\ldots they are useful.''
+
+

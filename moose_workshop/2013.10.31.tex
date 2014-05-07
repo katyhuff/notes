@@ -1,0 +1,157 @@
+\section{Preconditioning}
+If you don't do at least something, your application is not going to work. You 
+may not have to do this right, but you'll have to do at least something to be 
+efficient. 
+
+Though mathematicians will claim that a Krylov method must necessarily converge 
+within a number of iterations less than or equal to the number of degrees of 
+freedom (with or without precondititioning). However, because computers have 
+floating point issues, this is not the case with numerical Krylov.
+
+The default was previously to do no preconditioning, and relying on MOOSE's 
+automatic preconditioning, but it's now the default to include preconditioning.
+
+Using right preconditioning is just multiplying by one on both sides, but 
+cleverly (with $M^{-1}M$):
+
+\begin{align}
+  R'(u_i)M^{-1}(M\delta u_{1+i}=-R(u_i).
+  \label{right_precon}
+\end{align}
+
+$M$ is the preconditioning matrix, and has been intentionally grouped with 
+$\delta u_{i+1}$. In GMRES, we only apply the action of $M^{-1}$ on a vector, so 
+$M^{1}$ doesn't actually have to be a matrix.  What we want is for M to look 
+something like R. Then, we want to drive this toward identity. The matrix free 
+version is 
+
+\begin{align}
+  R(u_i)M^{-1}v\approx \frac{R(u_i+\epsilon M^{-1} v)-R(u_i)}{\epsilon}.
+  \label{matrixfreeprecon}
+\end{align}
+
+\subsection{Solve Type}
+The default is PJFNK. Others include JFNK, Newton (full Jacobian), and FD.
+
+\subsection{PETSc Options}
+There are a lot. It's actually very complicated. Just look at the manual. There 
+are a couple that are tricky. pctype is a complex decision. Derek likes asm and 
+hypre. If you're using hypre, you need to pick a pchypretype, etc.  You also 
+have this strongthreshold option for petsc which will be right at 0.7 for 3d. 
+Its default is 0.3, which is appropriate for the 2d laplacian?  Be careful with 
+$ksp\_gmres\_restart$. 100 usually isn't that bad, and you can probably get away 
+with 1000, but generally speaking, it is directly related to the amount of 
+memory that will be occupied. If there's a serious memory problem, you can do 
+some profiling with  MOOSE's memory logger. Ask them about it on the user list. 
+
+
+\subsubsection{Multigrid}
+The idea is that you'll solve the problem on a coarse grid, then you'll use that 
+to solve on the fine mesh. Origionally, it was built as finite element multigrid. 
+
+
+\subsection{Default Preconditioning Matrix}
+
+Typically, you build this Jacobian in the blocks. Each block is the size of the 
+residual and is the derivative of the residual with respect to each variable. An 
+approximation can be made by throwing away the off-diagonals. Those on-diagonal 
+blocks are exactly what you need to put in the computeQpJacobian function. 
+Throwing away those off-diagonals is how MOOSE preconditions with the default 
+solve\_type. 
+
+Note that this is called an operator split preconditioner. What you're throwing 
+away is the coupling information. What's in the blocks is how the i residual 
+will change when there is a change in the j variable.  Throwing that information 
+away could be a bad idea. 
+
+
+
+\subsection{Preconditioning Block}
+If you want to use the offdiagonals, you have to have the preconditioning block 
+in your input. You can have many preconditioners defined in the input file, but 
+you \emph{may not} have more than one active. 
+
+\subsection{Single Matrix Preconditioning}
+This is going to build a single giant matrix. This is specified with SMP. 
+
+The real thing to keep in mind is how strongly each variable affects each other 
+variable. You can neglect preconditioning matrix blocks where the coupling isn't 
+as strong. You shouldn't neglect preconditioning matrix blocks where the 
+coupling is strong. 
+
+You'll want to specify which ones to use by noting off-diag-row and 
+off-diag-column, but to use every off-diagonal block, you can use this shortcut 
+input file syntax full=true. 
+
+\subsection{Finite Difference Preconditioning}
+
+Do this with type=FDP. The idea is that you can build a direct finite difference 
+of the resicual. It's slow and inefficient, but forms a really perfect 
+preconditioner. You mostly just have to identify the differencing parameter. 
+Note that FDP doesn't work in parallel. 
+
+\subsection{Recommendation}
+The recommended options to start out for an elliptic problem in parallel.  
+
+\begin{verbatim}
+[Executioner]
+  petsc_options_iname = '-pc_type -pc_hypre_type -ksp_gmres_restart'
+  petsc_options_value = 'hypre boomeramg 101'
+[]
+\end{verbatim}
+
+A recommended preconditioner is also given. 
+
+\subsection{Example 11}
+The only way you'll know whether your preconditioner is workin is to output the 
+number of linear iterations. This is done with print\_linear\_residuals = true.
+
+\subsection{Physics Based Preconditioning}
+In a physics problem, one preconditioner might not be optimal for all physics. 
+For example, mutligrid is great for elliptic problems, but not for hyperbolic 
+problems. So, for a mixed set of pde's, you won't want to pick amg for 
+everything. 
+
+To fix this problem, you use PBP. It inverts a preconditioning matrix by 
+partially inverting each block row with gauss seidel.
+
+If you have a full hyperbolic system, you should use ILU, but otherwise, you 
+probably want to use AMG. 
+
+\subsection{Example 12}
+This shows how to use the pbp. It uses the same preconditioner for each block 
+row (LU), but you can see that it's possible to apply a different 
+preconditioner to each in this manner. 
+
+
+
+\section{MooseApp and Main}
+Your moose application must contain a MooseApp object which will hold the 
+essential objects. This is where you do all the registration of all the objects. 
+The application object also can supply validParams and has some extra types 
+(required and optional command line parameters are new validParam types for 
+mooseapp).
+
+Your AnimalApp.h/.C will contain key static functions. 
+
+Object registration happens in registerObjects. You don't have to register all 
+moose and elk objects, but it is done by default. 
+
+When creating a new Stork, you do the following :
+
+\begin{verbatim}
+cd projects/trunk
+cd stork
+./make_new_application.py animalname
+\end{verbatim}
+
+Stork delivers baby moose animals. Aw. It places the new baby animalname in 
+trunk.  When you go in there, you get the full setup with a base class h file, 
+make files, and a test. 
+
+\section{Test Harness}
+You'll need to use tests as the name of the file holding your tests. You can 
+make your own tester if you inherit from Testers. This is teh only way you'll be 
+able to write unit tests. 
+
+They have unit tests. MOOSE unit. 

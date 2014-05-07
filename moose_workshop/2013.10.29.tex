@@ -1,0 +1,464 @@
+\section{Intro}
+Jean Ragusa introduces Derek Gaston. Derek started the MOOSE project with Rich 
+Martineau. 
+
+
+
+\section{Framework}
+
+MOOSE started in May 2008. Leverages petsc and libMesh ( ) among other things. 
+
+
+\subsection{Coupling}
+\begin{itemize}
+  \item Loose Coupling / Operator Split
+    \begin{itemize}
+      \item Solve PDE1
+      \item Pass Data
+      \item Solve PDE2
+      \item Move to next timestep
+    \end{itemize}
+  \item Tight Coupling 
+    \begin{itemize}
+      \item Solve PDE1
+      \item Pass data
+      \item Solve PDE2
+      \item Pass Data
+      \item Solve PDE1
+      \item Pass Data
+      \item Solve PDE2
+      \item Converge
+      \item Move to next timestep
+    \end{itemize}
+  \item Full Coupling / JFNK
+    \begin{itemize}
+      \item Solve PDE1 and PDE2 simultaneously
+      \item Move to next timestep
+    \end{itemize}
+\end{itemize}
+
+\subsection{Strong Form}
+The normal, dimension agnostic form of any differential equation. You should 
+write it out dimension-agnotstically because you want to be able to solve it for any 
+number of dimenstion.
+
+\begin{align}
+  \rho C_p \frac{\partial T}{\partial T}- \grad \cdot k(T,B)\grad T = f
+  \label{strongform}
+\end{align}
+
+\subsection{Weak Form}
+
+The first and only step of getting this into MOOSE is to get the strong form 
+into the weak form. This is the integral form, and operates on the test function 
+$\psi_i$.
+
+The actual code looks very simple, and translates exactly from the weak form 
+into symbolic code. 
+
+
+\subsection{Pluggable Interfaces}
+
+There are many physics modules already built up. 
+
+Large collections of common physics include elk (extended library of kernels), fox, yak (yak enables critter, pronghorn, rattlesnake)
+
+Applications include include bighorn, condor (superconductivity), dingo, falcon (geomechanics), ferret (ferritic oxide stuff), grizzly, heron, hyraz, mallard, mamba, 
+osprey, rat, sparrow.
+
+\subsection{SQA}
+Multiple releases per day with continuous integration. Each change is vetted 
+against a large test suite. 
+Issue management in Trac. 
+Code metrcs are calcuated. 
+Documentation is automated. 
+
+This has been NQA-1 Assessed, which means it meets all requirements to build 
+nuclear safety software. 
+
+
+Validation of the framework is quite complete. However, validation of the 
+sub-physics are sortof up to the physics developers. 
+
+
+
+
+
+
+
+To build the pdf that makes the docs, checkout the code. 
+
+\begin{verbatim}
+  cd papers/moose_workshop
+  make
+  open main.pdf
+\end{verbatim}
+
+\section{Finite Elements the MOOSE Way}
+
+For the example to show how to find coefficients to functions, he uses a 
+polynomial fitting problem. He has some data and wants to fit a, b, and c. 
+
+\begin{align}
+  f(x) = a+bx+cx^2 +\cdots
+  \label{polynomial}
+\end{align}
+
+More generally, you look for 
+\begin{align}
+  f(x)\sum{i=0}c_ix^i
+  \label{lin_poly}
+\end{align}
+
+You then take the x and y $(f(x))$ points and plug them into the linear system. 
+You then use some magic method to solve the linear system and get a solution 
+vector. 
+
+\subsection{Weak Form}
+Using the finite element method, you need to have the weak form. This may be 
+referred to as forming a weighted resuldual or a variational statement.
+
+Any time you use MOOSE, the first thing you need to do is generate the weak 
+form. 
+
+
+\begin{itemize}
+  \item Write down the strong form of the PDE
+  \item Rearrange terms so that zero is on the right of the equals sign (residual form)
+  \item Multiply the whole equation by a ``test'' function ($\psi$)
+  \item Integrate the whole equation over the domain ($\Omega$) 
+  \item Integrate by parts (use divergence theorem) to get the desired 
+    derivative order (differentiability)
+  \item code up with moose and run
+\end{itemize}
+
+Just as a refresher, recall that the divergence theorem transforms a volume 
+integral into a surface integral.  
+
+You'll have to use it a lot. 
+
+
+\subsubsection{Advection (Convection) Diffusion}
+
+The second order derivative part is the diffusion part. 
+The single order derivative part is the advective part. 
+
+The $\vec{\beta}$ vector (obv.) is the velocity. 
+
+\subsubsection{Shape Functions}
+
+Shape functions are the functions that get multiplied by the coefficients and 
+added up to form our solution. Different shape functions and families of 
+functions.
+
+Lagrange shape function families are the most common. They are 
+interpolary at the nodes (that is, the coefficient corresponds to the value of 
+the function at the node). BUT, we're still solving for a function, not a single 
+vector of coefficients!
+
+\subsubsection{Numerical Integration}
+
+The final piece is that we do a quadrature approximation of the integral. 
+
+\subsubsection{Newton}
+
+We traditionally use Newton to make the update and find the converged solution 
+to this nonlinear system of equations. It has good convergence properties.  
+
+You basically start off with a guess, $x_n$. you evaluate the gradient, and 
+modify the guess by adding the gradient. Lather, rinse, repeat. 
+
+
+
+\subsubsection{Jacobian}
+Usually after this, you have to find the Jacobian. This object is usually 
+complicated and gigantic. 
+
+\subsubsection{Jacobian Free Newton Krylov}
+
+We can use a Krylov subspace method such as GMRES (or similar) to avoid the 
+Jacobian. In particular, we only need to understand the action of the Jacobian 
+on the vector, but never have to know the Jacobian itself. To do this, we need 
+to be comfortable making the approximation :
+
+\begin{align}
+  \boldsymbol{J}\vec{v}\approx \frac{\boldsymbol{R}(\vec{u}+\epsilon\vec{v}) - 
+  \boldsymbol{R}(\vec{u})}{\epsilon}.
+  \label{diffapprox}
+\end{align}
+
+Note, GMRES is the work of Saad and Shultz, 1986. It's probably best to actually 
+cite that work. 
+
+\section{MOOSE Framework}
+
+\subsection{Dependencies}
+\begin{itemize}
+  \item MPI (they prefer MPICH2)
+  \item Hypre (from LLNL. optional, if you want to use AMG)
+  \item PETSc
+  \item libMesh (a vetted version comes with MOOSE)
+\end{itemize}
+
+
+They maintain binaries of all of these dependencies for OSX or modern ubuntu. 
+
+\subsection{Input}
+
+There are blocks for meshes and executioners, etc. The variables, shape 
+families, etc. are all defined.
+
+\subsubsection{Active}
+Active is valid in any block. It is a shortcut for turning things on and off in 
+the simulation. It tells MOOSE which blocks are active. If you leave it out, all 
+of the blocks are active by default. Adding an active line with a particular 
+subset of paramters will turn only those parameters on within the block.
+
+\subsubsection{Mesh block}
+Their favorite mesh format is exodus2. They also read abacus-cae, gmesh, and 
+vtk. The $uniform\_refine=n$ option will split each element of the mesh $n$ 
+times.
+
+``Uniform refine is one way to destroy your computer.'' 
+
+Second order allows you to read a first order mesh and promote it to second 
+order as you read it. 
+
+You can create curved geometries with higher order curved elements with a thing 
+like CUBIT. It will output a mesh representing that curved object, which is then 
+read into moose.
+
+The mesh generator will allow you to name or number the boundaries. You can use 
+those names to the assign boundary conditions in the input file.
+
+\subsection{Variables}
+
+Each variable gets its own choice of shape function. you can mix all of these 
+shape functions. 
+
+
+\subsection{Kernels}
+
+You will declare the pde operators. There are already registered types that you 
+can rely on which to base this. That might be a heat conduction kernel, 
+diffusion kernel, whatever.
+
+You'll specify the type of kernel, then you'll say which (already named in the 
+variable block) variable on which it will act. 
+
+
+
+\section{Cubit}
+
+CUBIT can be licensed for CSimSoft for a fee. It's complicated even for 
+universities these days. If you're working on a government contract, CUBIT is 
+still free. 
+
+Other mesh generators can work as long as they output a file format that libMesh 
+reads. There are a lot of them. 
+
+The only parallel mesh type that they read is Nemesis, a type of exodus mesh. It 
+can be generated by cubit. See nemesis\_test.i in the moose\_test directory for a 
+working example.
+
+
+\section{Style Standard}
+
+\begin{verbatim}
+ClassName
+methodName
+_member_variable
+local_variable
+src/ClassName.C
+include/ClassName.h
+two spaces for indentation
+four spaes for init lists
+braces occupy their own line (and not be indented in crazy libmesh emacs style}
+spaces around all operators and declarations
+no trailing whitespace
+doxygen docs for each method
+\end{verbatim}
+
+
+\section{Template Specialization}
+
+The idea is that we have some main function that calls print(a) and print(b). We 
+want print to print the number if it gets an int. But, when it gets a bool, we 
+want it to print the string ``true'' or ``false''.
+
+To do this, we use \verb|template<>| to describe the one .
+
+\begin{verbatim}
+template<> 
+InputParameters validParams<MyKernel>(
+{
+  InputParameters params = validParams<Kernel>();
+  params.addRequiredParam<RealVectorValue>(``paramname'', ``param docstring'');
+  return params;
+}
+\end{verbatim}
+
+
+\section{Output}
+
+\subsection{OverSampling}
+Generally available visualization tools don't display the higher order solutions 
+natively. The values that are plotted must be on the mesh nodes. To see the 
+higher order stuff and get a smoother solution, you can oversample, which 
+involves interpolating the solution onto a higher mesh. 
+
+This will also work with the mesh-adaptivity of moose, such that the vizualized 
+output is not mesh adapted. Rather, it is refined so that the grid that gets 
+vizualized is regular. 
+
+The oversampling is not the same as solving the solution on a finer grid. It is 
+interpolating the coarse-grid solution (which has continuous shape functions) 
+over a finer grid.
+
+\section{Input Parameters and MOOSE Types}
+
+\subsection{Valid Paramters}
+
+This is where we use the template syntax we went over above. You can 
+addRequiredParam, you can addParam (which accepts a default), you can also add 
+paramters of container types.
+
+Types that you may not recognize and are MOOSEy: 
+\begin{itemize}
+  \item Point
+  \item RealVectorValue
+  \item RealTensorValue
+  \item SubdomainID
+  \item BoundaryID
+  \item Parser::ExtractParams(\ldots) will give you a full list of these types!
+\end{itemize}
+
+\subsection{Moose Enum}
+\ldots is peculiar.
+
+
+
+\section{Kernels}
+It can represent one or more operators in PDE and overrides 
+computeQpResidual() which returns a weak form of the pde operator thing. 
+
+The Kernel can optionally override the jacobian and off-diag jacobians. It's 
+going to look a lot like the jacobian, but may not be the full on jacobian. It 
+will be a simple version of the jacobian and will act as a precondicitoner.
+
+
+All Kernels inherit from the Kernel class. They will therefore include Kernel.h 
+and will have the public inheritance declartion as a derived class of Kernel.
+
+In general, most functions should be protected.
+
+
+\subsection{Member variables}
+The \_u and grad\_u are the most important, because those are what the kernel is 
+operating on. The name never changes when you're building a kernel object.
+
+
+The quadrature point where you are right now is the ``q-point.'' There was a 
+question about how we calculate quadrature points, but, importantly, we do not 
+choose them. You can override the choice, but, usually, MOOSE chooses the 
+quadradture points.  
+
+The i always goes with the test function in moose the j always goes with the 
+jacobian. Thus, don't screw up \_i and \_j because they refer to the test and 
+trial functions respectively. 
+
+If you need to inspect the current element, you can get that from the object. 
+
+\subsection{Diffusion Example}
+
+Creating this kernel object requires the residual, but it's also easy to 
+calculate the jacobian as well, so we do that (because we can). 
+
+
+
+
+\section{Running MOOSE}
+
+You should use some level of j with make. 
+
+\begin{verbatim}
+make -j4 (or whatever)
+\end{verbatim}
+
+By default, you will run in optimized (opt) mode. You may prefer to work in 
+oprof in order to do more extensive debugging and profiling. 
+
+So, you can go to the moose\_examples directory and run make.
+
+The base folder will hold your app. The src will hold your main.C. The 
+executable will be created in the root directory of the example. Run it.
+
+When it runs, it will give you lots of useful information. While timing output 
+is not listed by default, you can set it somewhere. 
+
+The out.e file can be opened in Paraview! It's pretty dang good!
+
+
+If things are going slowly, you can turn on algebraic multigrids with petsc 
+options (-pc\_type hypre -pc\_hypre\_type boomerang)
+
+
+You can override parameters on the commandline :
+
+\begin{verbatim}
+./example -i input.i -pc_type hypre -pc_hypre_type boomerang Mesh/uniform_refine=8
+\end{verbatim}
+
+
+To use more processors, just throw in an mpiexec 
+
+\begin{verbatim}
+mpiexec -n 4 ./example -i input.i -pc_type hypre -pc_hypre_type boomerang Mesh/uniform_refine=8
+\end{verbatim}
+
+
+To use more threads (like, on a cluster with many processors per node)
+
+\begin{verbatim}
+mpiexec -n 2 ./example -i input.i -pc_type hypre -pc_hypre_type boomerang Mesh/uniform_refine=8 --n-threads=2
+\end{verbatim}
+
+
+
+\section{Coupling}
+
+Simultaneous solves just happen in the input file when you call both diffusion 
+and advection on the same param. 
+
+But, sometimes you need to refer to an unknown variable in order to solve for 
+another. 
+
+So, the way this goes is set out in the nonlinear transient oxygen 
+non-stoichiometry example. It shows that, to form the residual for a coupled 
+nonlinear residual, we take the residuals for each of the physics, and then we 
+stack them on top of each other in a vector.  
+
+That was complicated though. The simpler example is one way coupled diffusion 
+advection (where the derivative of the pressure, or whatever, drives flow).
+
+You can grab the gradient from elsewhere in the simulation and use that as the 
+velocity vector instead of just specifying it in the input file. 
+
+
+To couple a variable into a moose object (such as a Kernel), you do this with 
+the valid params functionality. This allows you to do the coupling in the input 
+file. You do this with addCoupledVar. There are also variables called auxilliary 
+variables that allow you to couple and uncouple things. 
+
+Once you join the coupling parameter with your kernel, you need to call some 
+functions to gain accesses to that variable. You will do this in the 
+initialization list in your constructor (these funcitons return references, so 
+you have to grab it and hold onto it thusly). You can get their values, their 
+value from last timestep, their gradients, old gradients, older gradients, etc. 
+You can also get the time derivative (coupledDot). Once you grab those 
+references, you use them in computing the residual and jacobians. 
+
+
+
+
+
